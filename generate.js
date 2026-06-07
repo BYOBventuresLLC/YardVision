@@ -20,8 +20,14 @@
 //   gemini-3-pro-image for max fidelity if a render looks weak.
 // ===========================================================================
 
-const GEMINI_MODEL = "gemini-3.1-flash-image"; // Nano Banana 2
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent`;
+// Model is overridable via the GEMINI_MODEL env var so you can swap to
+// gemini-3-pro-image (max fidelity) without touching code — just set it in
+// Vercel and redeploy. Defaults to Nano Banana 2 (cheap/fast).
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.1-flash-image"; // Nano Banana 2
+// IMPORTANT: image-generation models are served from the **v1beta** API
+// surface, NOT v1. Calling /v1/ returns 404 "model not found" and no image
+// ever comes back. Keep this on v1beta.
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 // Turn the landscaper's task list into a scene description. Gemini responds
 // FAR better to a narrative paragraph than a list of keywords — so we write
@@ -51,7 +57,11 @@ function buildPrompt(tasks) {
 }
 
 // ---- Main handler (Vercel-style: req, res) -------------------------------
-module.exports = async function handler(req, res) {
+// NOTE: written as an ESM `export default` because package.json sets
+// "type": "module". Using CommonJS `module.exports` here makes Vercel fail to
+// detect the function ("doesn't match any Serverless Functions") and the build
+// dies. Keep this an ESM default export.
+export default async function handler(req, res) {
   // CORS — lock origin down to your real domain in production.
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -131,7 +141,7 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     return res.status(500).json({ error: "Server error", detail: String(err) });
   }
-};
+}
 
 // ---- NETLIFY variant -------------------------------------------------------
 // If deploying to Netlify Functions, replace the handler signature with:
