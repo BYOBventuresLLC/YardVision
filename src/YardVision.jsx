@@ -54,17 +54,38 @@ function escapeXml(s) {
 }
 
 
-function fileToBase64(file) {
+// Downscale + re-encode the photo BEFORE sending it to the backend.
+// WHY: phone photos are several MB; once base64-inflated (~+33%) they blow
+// past Vercel's ~4.5MB serverless request-body limit → a 413 "Payload Too
+// Large" error and no image. Resizing to 1536px on the long edge as JPEG
+// drops it to a few hundred KB — and that's the resolution Gemini wants
+// anyway, so the render quality is unaffected.
+function fileToBase64(file, maxDim = 1536, quality = 0.85) {
   return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => {
-      const result = r.result; // data:<mime>;base64,<data>
-      const [meta, data] = result.split(",");
-      const mimeType = meta.match(/data:(.*?);/)?.[1] || "image/jpeg";
-      resolve({ base64: data, mimeType });
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (Math.max(width, height) > maxDim) {
+        const scale = maxDim / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, width, height);
+      // toDataURL → "data:image/jpeg;base64,<data>"; we want just the data.
+      const base64 = canvas.toDataURL("image/jpeg", quality).split(",")[1];
+      resolve({ base64, mimeType: "image/jpeg" });
     };
-    r.onerror = reject;
-    r.readAsDataURL(file);
+    img.onerror = (e) => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Could not read that image file."));
+    };
+    img.src = url;
   });
 }
 
