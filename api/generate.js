@@ -96,8 +96,12 @@ export default async function handler(req, res) {
         },
       ],
       generationConfig: {
+        // Image-only output. We deliberately DON'T set responseFormat /
+        // aspectRatio / imageSize: this model rejects the friendly "4:3" /
+        // "2K" values (INVALID_ARGUMENT), and for an image EDIT the result
+        // should track the input photo's framing anyway — which it does by
+        // default. Leave sizing to the model so the before/after match.
         responseModalities: ["IMAGE"],
-        responseFormat: { image: { aspectRatio: "4:3", imageSize: "2K" } },
       },
     };
 
